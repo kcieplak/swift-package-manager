@@ -512,14 +512,18 @@ extension PackageGraph.ResolvedModule {
     }
 
     func productRepresentingDependencyOfBuildPlugin(in mainModuleProducts: [ResolvedProduct]) -> ResolvedProduct? {
-        mainModuleProducts.only { (mainModuleProduct: ResolvedProduct) -> Bool in
-            // NOTE: We can't use the 'id' here as we need to explicitly ignore the build triple because our build
-            // triple will be '.tools' while the target we want to depend on will have a build triple of '.destination'.
-            // See for more details:
-            // https://github.com/swiftlang/swift-package-manager/commit/b22168ec41061ddfa3438f314a08ac7a776bef7a.
-            return mainModuleProduct.mainModule!.packageIdentity == self.packageIdentity &&
-                mainModuleProduct.mainModule!.name == self.name
-            // Intentionally ignore the build triple!
+        return mainModuleProducts.only { mainModuleProduct in
+            // Handle binary-only executable products that don't have a main module, i.e. binaryTarget
+            if mainModuleProduct.mainModule == nil {
+                return mainModuleProduct.type == .executable &&
+                       mainModuleProduct.modules.count == 1 &&
+                       mainModuleProduct.modules.first?.type == .binary
+            }
+            // For products with a main module, compare package identity and name
+            // (build triples are no longer used in the package graph)
+            guard let mainModule = mainModuleProduct.mainModule else { return false }
+            return mainModule.packageIdentity == self.packageIdentity &&
+                   mainModule.name == self.name
         }
     }
 
